@@ -11,13 +11,13 @@ env/
 .venv.bak/
 
 # Streamlit secrets
-streamlit.secrets.toml
-.env
+.streamlit/secrets.toml
 
 # Datasets & indexes
 data/
 indexes/
 *.epub
+tests/test_vector_index/
 
 # HuggingFace / Transformers cache
 ~/.cache/
@@ -31,3 +31,6 @@ indexes/
 
 # MacOS
 .DS_Store
+
+# Pytest
+.pytest_cache/
