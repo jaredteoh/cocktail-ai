@@ -19,6 +19,17 @@ if not INGREDIENTS_PATH.exists():
 with open(INGREDIENTS_PATH, "r") as file:
     ingredients = json.load(file)
 
+#Streamlit configuration
+st.markdown(
+    """
+    <style>
+      .stButton>button { width: 100%; }
+      .stTabs [role="tab"] { font-weight: 600; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Create LLM
 @st.cache_resource(show_spinner="Loading local model...")
 def load_llama3_local(model_name, temperature):
@@ -66,25 +77,48 @@ tab1, tab2 = st.tabs(["Inventory", "Cocktail Suggestions"])
 
 # Helper to render each category block
 def ingredient_section(label, key, options):
-    st.markdown(f"##### {label}")
+    with st.expander(label, expanded=False):
+        chosen = st.multiselect("Select:", options, key=f"{key}_sel")
+        custom = st.text_input("Custom (comma-separated):", key=f"{key}_cus")
+        if custom:
+            chosen += [x.strip() for x in custom.split(",") if x.strip()]
+    return chosen
 
-    selected = st.multiselect(
-        "Select from list:",
-        options=options,
-        key=f"{key}_select"
-    )
+# Helper to dedepuplicate and normalize ingredient selections
+def dedupe_and_normalize(items):
+    return sorted({item.strip().lower() for item in items if item.strip()})
 
-    custom_input = st.text_input(
-        "Others if not listed above (comma-separated):",
-        key=f"{key}_custom"
-    )
+# Helper to display inventory by category
+def display_inventory_by_category(inventory):
+    categories = {
+        "Base Spirits": ingredients.get("base_spirits", []),
+        "Liqueurs": ingredients.get("liqueurs", []),
+        "Bitters": ingredients.get("bitters", []),
+        "Mixers": ingredients.get("mixers", []),
+        "Garnishes": ingredients.get("garnishes", []),
+    }
 
-    if custom_input:
-        custom_items = [item.strip() for item in custom_input.split(",") if item.strip()]
-        selected.extend(custom_items)
+    categorized = {cat: [] for cat in categories}
+    others = []
 
-    st.markdown("---")
-    return selected
+    for item in inventory:
+        found = False
+        for cat, known_items in categories.items():
+            if item in map(str.lower, known_items):
+                categorized[cat].append(item)
+                found = True
+                break
+        if not found:
+            others.append(item)
+
+    for cat, items in categorized.items():
+        if items:
+            st.markdown(f"**{cat}:**")
+            st.markdown(", ".join(sorted(i.title() for i in items)))
+
+    if others:
+        st.markdown("**Others:**")
+        st.markdown(", ".join(sorted(i.title() for i in others)))
 
 # Tab 1: Inventory
 with tab1:
@@ -132,11 +166,12 @@ with tab1:
 
     # Save inventory
     if st.button("Save Inventory"):
-        st.session_state["inventory"] = list(set(inventory_selections))  # Remove duplicates
+        st.session_state["inventory"] = dedupe_and_normalize(list(inventory_selections))
 
     st.subheader("Current Inventory")
     if st.session_state["inventory"]:
-        st.success(", ".join(st.session_state["inventory"]))
+        # st.success(", ".join(st.session_state["inventory"]))
+        display_inventory_by_category(st.session_state["inventory"])
     else:
         st.info("No ingredients selected yet.")
 
