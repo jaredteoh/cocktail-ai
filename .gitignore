@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+env/
+.venv.bak/
+
+# Streamlit secrets
+streamlit.secrets.toml
+.env
+
+# Datasets & indexes
+data/
+indexes/
+*.epub
+
+# HuggingFace / Transformers cache
+~/.cache/
+*.ckpt
+*.h5
+*.pt
+*.bin
+
+# VSCode
+.vscode/
+
+# MacOS
+.DS_Store
