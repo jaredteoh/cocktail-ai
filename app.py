@@ -19,12 +19,50 @@ if not INGREDIENTS_PATH.exists():
 with open(INGREDIENTS_PATH, "r") as file:
     ingredients = json.load(file)
 
+# Create LLM
+@st.cache_resource(show_spinner="Loading local model...")
+def load_llama3_local(model_name, temperature):
+    return Ollama(model=model_name, temperature=temperature)
+llm = load_llama3_local(model_name=MODEL_ID, temperature=TEMPERATURE)
+
+prompt_template = PromptTemplate.from_template(
+    """
+    You are an expert cocktail assistant.
+    
+    User prompt: {prompt}
+    User has the following ingredients: {ingredients}
+
+    Based on both the user's preferences and ingredients:
+    1. Suggest classic cocktails that can be made using ONLY the ingredients and match the user's request.
+    
+    2. For each cocktail, output:
+    - Cocktail Name
+    - List of ingredients with measurements
+    - Instructions for preparation
+
+    3. Format the response as a clear list.
+
+    If no cocktails match, reply: "No cocktails can be made with the provided ingredients and preferences."
+    """
+)
+
+def combine_prompt_and_ingredients(data):
+    return {
+        "prompt": data["prompt"],
+        "ingredients": ", ".join(data["ingredients"])
+    }
+
+rag_chain = (
+    RunnablePassthrough(combine_prompt_and_ingredients)
+    | prompt_template
+    | llm
+)
 
 # Streamlit App UI
 st.title("CocktAIl - Your AI Cocktail Assistant")
 st.markdown("#### Discover the perfect cocktail recipe based on your ingredients!")
 
-user_inputs = {}
+tab1, tab2 = st.tabs(["Inventory", "Cocktail Suggestions"])
 
 # Helper to render each category block
 def ingredient_section(label, key, options):
@@ -48,79 +86,77 @@ def ingredient_section(label, key, options):
     st.markdown("---")
     return selected
 
-# Ingredient sections
-user_inputs["base_spirits"] = ingredient_section(
-    "Base Spirits",
-    "base_spirits",
-    ingredients.get("base_spirits", [])
-)
-user_inputs["liqueurs"] = ingredient_section(
-    "Liqueurs",
-    "liqueurs",
-    ingredients.get("liqueurs", [])
-)
-user_inputs["bitters"] = ingredient_section(
-    "Bitters",
-    "bitters",
-    ingredients.get("bitters", [])
-)
-user_inputs["mixers"] = ingredient_section(
-    "Mixers",
-    "mixers",
-    ingredients.get("mixers", [])
-)
-user_inputs["garnishes"] = ingredient_section(
-    "Garnishes",
-    "garnishes",
-    ingredients.get("garnishes", [])
-)
+# Tab 1: Inventory
+with tab1:
+    st.header("Your Ingredient Inventory")
 
-# Combine all selected ingredients
-all_ingredients = []
-for category, items in user_inputs.items():
-    all_ingredients.extend(items)
+    if "inventory" not in st.session_state:
+        st.session_state["inventory"] = []
 
-# Create LLM
-@st.cache_resource(show_spinner="Loading local model...")
-def load_llama3_local(model_name, temperature):
-    return Ollama(model=model_name, temperature=temperature)
-llm = load_llama3_local(model_name=MODEL_ID, temperature=TEMPERATURE)
+    inventory_selections = []
+    inventory_selections.extend(
+        ingredient_section(
+            "Base Spirits",
+            "base_spirits",
+            ingredients.get("base_spirits", [])
+        )
+    )
+    inventory_selections.extend(
+        ingredient_section(
+            "Liqueurs",
+            "liqueurs",
+            ingredients.get("liqueurs", [])
+        )
+    )
+    inventory_selections.extend(
+        ingredient_section(
+            "Bitters",
+            "bitters",
+            ingredients.get("bitters", [])
+        )
+    )
+    inventory_selections.extend(
+        ingredient_section(
+            "Mixers",
+            "mixers",
+            ingredients.get("mixers", [])
+        )
+    )
+    inventory_selections.extend(
+        ingredient_section(
+            "Garnishes",
+            "garnishes",
+            ingredients.get("garnishes", [])
+        )
+    )
 
-prompt_template = PromptTemplate.from_template(
-    # """
-    # Generate a cocktail recipe for gin, lime, and sugar.
-    # """
-    """
-    You are an expert cocktail assistant.
-    
-    User has the following ingredients: {ingredients}
+    # Save inventory
+    if st.button("Save Inventory"):
+        st.session_state["inventory"] = list(set(inventory_selections))  # Remove duplicates
 
-    Your task:
-    1. Identify as many classic cocktails as possible that can be made using ONLY the ingredients the user has provided.
-    
-    2. For each matching cocktail, output:
-    - Cocktail Name
-    - List of ingredients with measurements
-    - Instructions for preparation
-
-    3. Format the response as a clear list.
-
-    If no cocktails match, reply: "No cocktails can be made with the provided ingredients."
-    """
-)
-
-rag_chain = (
-    {"ingredients": RunnablePassthrough()}
-    | prompt_template
-    | llm
-)
-
-if st.button("Find Cocktails"):
-    if not all_ingredients:
-        st.warning("Please select at least one ingredient.")
+    st.subheader("Current Inventory")
+    if st.session_state["inventory"]:
+        st.success(", ".join(st.session_state["inventory"]))
     else:
-        ingredients_str = ", ".join(all_ingredients)
-        with st.spinner("Generating response..."):
-            response = rag_chain.invoke(ingredients_str)
-        st.subheader("Cocktails You Can Make:")
-        st.markdown(response)
+        st.info("No ingredients selected yet.")
+
+# Tab 2: Prompt-based Suggestions
+with tab2:
+    st.header("Smart Cocktail Recommender")
+
+    prompt = st.text_input("Describe what you're in the mood for (e.g. 'I want something sweet and refreshing')")
+
+    if st.button("Suggest Cocktails"):
+        if not prompt:
+            st.warning("Please enter a prompt describing what you want.")
+        elif not st.session_state["inventory"]:
+            st.warning("Your inventory is empty. Add ingredients in the Inventory tab.")
+        else:
+            input_data = {
+                "prompt": prompt,
+                "ingredients": st.session_state["inventory"]
+            }
+            with st.spinner("Generating response..."):
+                response = rag_chain.invoke(input_data)
+            st.subheader("Cocktails You Can Make:")
+            st.markdown(response)
