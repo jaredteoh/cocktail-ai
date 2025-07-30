@@ -14,15 +14,20 @@ PROMPT_TEMPLATE = PromptTemplate.from_template(
     User prompt: {prompt}
     User has the following ingredients: {ingredients}
 
-    Based on both the user's preferences and ingredients:
-    1. Suggest classic cocktails that can be made using ONLY the ingredients and match the user's request.
+    Task:
+    1. *Section A* - List classic cocktails that can be made using only the available ingredients and match the user's request.
+    2. *Section B* - List classic cocktails that require one or two additional ingredients and match the user's request.
+        - Show the cocktail name.
+        - Show the missing ingredient(s).
     
-    2. For each cocktail, output:
+    For every cocktail in either section include:
     - Cocktail Name
     - List of ingredients with measurements
     - Instructions for preparation
 
-    3. Format the response as a clear list.
+    Use clear markdown headings:
+    ## Section A: Ready Now
+    ## Section B: Missing 1-2 Ingredients
 
     If no cocktails match, reply: "No cocktails can be made with the provided ingredients and preferences."
     """

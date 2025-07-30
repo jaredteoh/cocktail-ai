@@ -10,6 +10,7 @@ from inventory_utils import (
     ingredient_section,
     dedupe_and_normalize,
     display_inventory_by_category,
+    convert_units,
     INGREDIENTS
 )
 
@@ -100,6 +101,8 @@ with tab2:
 
     prompt = st.text_input("Describe what you're in the mood for (e.g. 'I want something sweet and refreshing')")
 
+    unit_choice = st.radio("Display measurements in:", ["ml", "oz"], horizontal=True)
+
     if st.button("Suggest Cocktails"):
         if not prompt:
             st.warning("Please enter a prompt describing what you want.")
@@ -111,6 +114,9 @@ with tab2:
                 "ingredients": st.session_state["inventory"]
             }
             with st.spinner("Generating response..."):
-                response = chain.invoke(input_data)
-            st.subheader("Cocktails You Can Make:")
-            st.markdown(response)
+                raw_response = chain.invoke(input_data)
+            st.session_state["last_response"] = raw_response
+    if "last_response" in st.session_state:
+        converted = convert_units(st.session_state["last_response"], unit_choice)
+        st.subheader("Cocktails You Can Make:")
+        st.markdown(converted, unsafe_allow_html=True)
